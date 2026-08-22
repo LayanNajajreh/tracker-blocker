@@ -1,0 +1,79 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { Builder } from "selenium-webdriver";
+import firefox from "selenium-webdriver/firefox.js";
+
+const SCRIPT_DIR = fileURLToPath(new URL(".", import.meta.url));
+export const PROJECT_ROOT = resolve(SCRIPT_DIR, "../..");
+export const EXTENSION_SOURCE = process.env.UI_HARNESS_EXTENSION_SOURCE
+  ? resolve(process.env.UI_HARNESS_EXTENSION_SOURCE)
+  : resolve(PROJECT_ROOT, ".output/firefox-mv3");
+export const EXTENSION_NAME = "Tracker Blocker by Opt Out Rights";
+export const EXTENSION_ID = "trackerblocker@optoutrights.org";
+
+export async function verifyBuild() {
+  const manifest = JSON.parse(
+    await readFile(resolve(EXTENSION_SOURCE, "manifest.json"), "utf8"),
+  );
+  assert.equal(manifest.name, EXTENSION_NAME);
+  assert.equal(manifest.browser_specific_settings?.gecko?.id, EXTENSION_ID);
+}
+
+export function resolveFirefoxBinary() {
+  if (process.env.FIREFOX_BINARY) {
+    return process.env.FIREFOX_BINARY;
+  }
+  return "C:\\Program Files\\Mozilla Firefox\\firefox.exe";
+}
+
+export async function launchWithExtension({ headless = true } = {}) {
+  await verifyBuild();
+
+  const options = new firefox.Options();
+  options.setBinary(resolveFirefoxBinary());
+  if (headless) {
+    options.addArguments("-headless");
+  }
+
+  const service = new firefox.ServiceBuilder().addArguments(
+    "--allow-system-access",
+  );
+
+  const driver = await new Builder()
+    .forBrowser("firefox")
+    .setFirefoxOptions(options)
+    .setFirefoxService(service)
+    .build();
+
+  await driver.installAddon(EXTENSION_SOURCE, true);
+  await delay(1000);
+  const uuid = await resolveExtensionUuid(driver);
+
+  return { driver, uuid };
+}
+
+export async function resolveExtensionUuid(driver) {
+  const capabilities = await driver.getCapabilities();
+  const profilePath = capabilities.get("moz:profile");
+  const prefsText = readFileSync(resolve(profilePath, "prefs.js"), "utf8");
+  const match = prefsText.match(
+    /user_pref\("extensions\.webextensions\.uuids", "(.*?)"\);/,
+  );
+  assert.ok(match, "extensions.webextensions.uuids pref was not written");
+  const uuidMap = JSON.parse(match[1].replace(/\\"/g, '"'));
+  const uuid = uuidMap[EXTENSION_ID];
+  assert.ok(uuid, `no moz-extension uuid recorded for ${EXTENSION_ID}`);
+  return uuid;
+}
+
+export async function openPopup(driver, uuid) {
+  await driver.get(`moz-extension://${uuid}/popup.html`);
+}
+
+function delay(milliseconds) {
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
+}
