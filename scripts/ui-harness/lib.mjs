@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,11 +23,31 @@ export async function verifyBuild() {
   assert.equal(manifest.browser_specific_settings?.gecko?.id, EXTENSION_ID);
 }
 
+const CANDIDATE_FIREFOX_BINARIES = {
+  win32: [
+    "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
+    "C:\\Program Files (x86)\\Mozilla Firefox\\firefox.exe",
+  ],
+  darwin: ["/Applications/Firefox.app/Contents/MacOS/firefox"],
+  linux: ["/usr/bin/firefox", "/usr/lib/firefox/firefox", "/snap/bin/firefox"],
+};
+
 export function resolveFirefoxBinary() {
   if (process.env.FIREFOX_BINARY) {
     return process.env.FIREFOX_BINARY;
   }
-  return "C:\\Program Files\\Mozilla Firefox\\firefox.exe";
+
+  const candidates = CANDIDATE_FIREFOX_BINARIES[process.platform] ?? [];
+  const installed = candidates.find((candidate) => existsSync(candidate));
+  if (installed) {
+    return installed;
+  }
+
+  // No known install path exists (e.g. a CI image that only has "firefox"
+  // on PATH). Let selenium-webdriver/geckodriver resolve it from PATH
+  // rather than failing outright; set FIREFOX_BINARY explicitly if that
+  // lookup finds the wrong binary.
+  return "firefox";
 }
 
 export async function launchWithExtension({ headless = true } = {}) {
