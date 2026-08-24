@@ -43,10 +43,6 @@ export function resolveFirefoxBinary() {
     return installed;
   }
 
-  // No known install path exists (e.g. a CI image that only has "firefox"
-  // on PATH). Let selenium-webdriver/geckodriver resolve it from PATH
-  // rather than failing outright; set FIREFOX_BINARY explicitly if that
-  // lookup finds the wrong binary.
   return "firefox";
 }
 
