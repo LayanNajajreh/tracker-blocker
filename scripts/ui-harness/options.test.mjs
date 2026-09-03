@@ -2,17 +2,17 @@ import assert from "node:assert/strict";
 
 import { By, Key, until } from "selenium-webdriver";
 
-import { launchWithExtension } from "./lib.mjs";
+import { launchWithExtension, openExtensionPage } from "./lib.mjs";
 
 const EXPECT_ENGINE_HEALTHY = process.env.EXPECT_ENGINE_HEALTHY !== "false";
 
 const checkpoints = [];
 
 async function main() {
-  const { driver, uuid } = await launchWithExtension({ headless: true });
+  const { close, driver, uuid } = await launchWithExtension({ headless: true });
 
   try {
-    await driver.get(`moz-extension://${uuid}/options.html`);
+    await openExtensionPage(driver, uuid, "options.html");
 
     const summary = await driver.wait(
       until.elementLocated(
@@ -50,7 +50,7 @@ async function main() {
     assert.equal(siteAccessText, "Granted");
     checkpoint("site access reports granted");
   } finally {
-    await driver.quit();
+    await close();
   }
 
   report();

@@ -46,6 +46,22 @@ export function resolveFirefoxBinary() {
   return "firefox";
 }
 
+export function resolveGeckoDriverPath() {
+  const driverPath = process.env.GECKODRIVER_PATH;
+
+  if (!driverPath) {
+    throw new Error(
+      "UI harness requires a local geckodriver binary. Set GECKODRIVER_PATH to its absolute path; the test suite never downloads a driver at runtime.",
+    );
+  }
+
+  if (!existsSync(driverPath)) {
+    throw new Error(`GECKODRIVER_PATH does not exist: ${driverPath}`);
+  }
+
+  return driverPath;
+}
+
 export async function launchWithExtension({ headless = true } = {}) {
   await verifyBuild();
 
@@ -55,21 +71,32 @@ export async function launchWithExtension({ headless = true } = {}) {
     options.addArguments("-headless");
   }
 
-  const service = new firefox.ServiceBuilder().addArguments(
+  const service = new firefox.ServiceBuilder(resolveGeckoDriverPath()).addArguments(
     "--allow-system-access",
   );
+  let driver;
+  try {
+    driver = await new Builder()
+      .forBrowser("firefox")
+      .setFirefoxOptions(options)
+      .setFirefoxService(service)
+      .build();
 
-  const driver = await new Builder()
-    .forBrowser("firefox")
-    .setFirefoxOptions(options)
-    .setFirefoxService(service)
-    .build();
+    await driver.installAddon(EXTENSION_SOURCE, true);
+    await delay(1000);
+    const uuid = await resolveExtensionUuid(driver);
 
-  await driver.installAddon(EXTENSION_SOURCE, true);
-  await delay(1000);
-  const uuid = await resolveExtensionUuid(driver);
-
-  return { driver, uuid };
+    return {
+      driver,
+      uuid,
+      async close() {
+        await driver.quit();
+      },
+    };
+  } catch (error) {
+    await driver?.quit().catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function resolveExtensionUuid(driver) {
@@ -87,7 +114,17 @@ export async function resolveExtensionUuid(driver) {
 }
 
 export async function openPopup(driver, uuid) {
-  await driver.get(`moz-extension://${uuid}/popup.html`);
+  await openExtensionPage(driver, uuid, "popup.html");
+}
+
+export async function openExtensionPage(driver, uuid, page) {
+  const url = `moz-extension://${uuid}/${page}`;
+  await driver.setContext(firefox.Context.CONTENT);
+  await driver.get(url);
+  await driver.wait(
+    async () => (await driver.getCurrentUrl()).startsWith(url),
+    5000,
+  );
 }
 
 function delay(milliseconds) {

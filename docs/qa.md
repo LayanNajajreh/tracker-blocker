@@ -20,7 +20,9 @@ behavior changes.
 
 Run `npm run test:ui` for popup/options UI changes. It drives a real
 Firefox build via Selenium/geckodriver with the packaged extension
-sideloaded, and needs a local Firefox install. Set `FIREFOX_BINARY` to
+sideloaded, and needs local Firefox and geckodriver binaries. Set
+`GECKODRIVER_PATH` to the driver's absolute path; the harness deliberately
+does not download a browser driver while testing. Set `FIREFOX_BINARY` to
 point at a specific binary if the platform default in
 `scripts/ui-harness/lib.mjs` doesn't find one (e.g. a non-standard
 install path or a CI image).
@@ -102,10 +104,8 @@ install path or a CI image).
   `browser.*` behavior.
 - The UI harness resolves a Firefox binary from `FIREFOX_BINARY`, then a
   short list of per-OS default install paths, then falls back to `firefox`
-  on `PATH`. It has not yet been run unattended in CI; if it's wired into a
-  GitHub Actions workflow, that runner image needs Firefox available (or
-  `FIREFOX_BINARY` pointed at one) for the platform-default lookup to
-  matter.
+  on `PATH`. It resolves geckodriver only from `GECKODRIVER_PATH` so a missing
+  or unpinned driver cannot cause an implicit network download.
 - The packaged catalog is intentionally conservative; broad mixed-use product
   domains remain out of its default block rules.
 - Top-level navigations reset tab evidence and are not shown as request rows.

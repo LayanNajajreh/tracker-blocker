@@ -9,7 +9,7 @@ const checkpoints = [];
 const HEADLESS = process.env.UI_HARNESS_HEADLESS !== "false";
 
 async function main() {
-  const { driver, uuid } = await launchWithExtension({ headless: HEADLESS });
+  const { close, driver, uuid } = await launchWithExtension({ headless: HEADLESS });
 
   try {
     await openPopup(driver, uuid);
@@ -69,7 +69,7 @@ async function main() {
       await driver.sleep(8000);
     }
   } finally {
-    await driver.quit();
+    await close();
   }
 
   report();
